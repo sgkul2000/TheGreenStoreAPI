@@ -4,74 +4,39 @@ const auth = require('../middleware/auth')
 
 const User = require('./models/userModel')
 
-router.get('/', auth.authenticateTokenAdmin, (req, res) => {
-  User.find({ isAdmin: true }, (err, admins) => {
-    if (err) {
-      console.error(err)
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
+router.get('/', auth.authenticateTokenAdmin, (req, res, next) => {
+  User.find({ isAdmin: true }).then((admins) => {
     res.send({
       success: true,
       data: admins,
     })
-  })
+  }).catch(next)
 })
 
-router.post('/', auth.authenticateTokenAdmin, (req, res) => {
+router.post('/', auth.authenticateTokenAdmin, (req, res, next) => {
   console.log(req.body)
-  User.findOne({ email: req.body.email }, (err, user) => {
-    if (err) {
-      console.error(err)
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
+  User.findOne({ email: req.body.email }).then((user) => {
     user.isAdmin = true
-    user.save((err, savedUser) => {
-      if (err) {
-        console.error(err)
-        return res.status(400).send({
-          success: false,
-          error: err,
-        })
-      }
+    user.save().then((savedUser) => {
       res.send({
         success: true,
         data: savedUser,
       })
-    })
-  })
+    }).catch(next)
+  }).catch(next)
 })
 
-router.delete('/', auth.authenticateTokenAdmin, (req, res) => {
+router.delete('/', auth.authenticateTokenAdmin, (req, res, next) => {
   console.log(req.query)
-  User.findById(req.query.id, (err, user) => {
-    if (err) {
-      console.error(err)
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
+  User.findById(req.query.id).then((user) => {
     user.isAdmin = false
-    user.save((err, removedUser) => {
-      if (err) {
-        console.error(err)
-        return res.status(400).send({
-          success: false,
-          error: err,
-        })
-      }
+    user.save().then(( removedUser) => {
       res.send({
         success: true,
         data: removedUser,
       })
-    })
-  })
+    }).catch(next)
+  }).catch(next)
 })
 
 module.exports = router

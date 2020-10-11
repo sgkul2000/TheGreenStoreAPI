@@ -7,7 +7,7 @@ const Order = require('./models/orderModel')
 const Product = require('./models/productModel')
 const Address = require('./models/addressModel')
 
-router.get('/', auth.authenticateToken, (req, res) => {
+router.get('/', auth.authenticateToken, (req, res, next) => {
   // expected params are : all, completed, id
   let params = {
     user: req.user.id,
@@ -44,32 +44,24 @@ router.get('/', auth.authenticateToken, (req, res) => {
   })
     .populate('user')
     .populate('cart')
-    .exec((err, orders) => {
-      if (err) {
-        console.error(err)
-        return res.status(400).send({
-          success: false,
-          error: err,
-        })
-      }
+    .exec()
+    .then((orders) => {
       res.send({
         success: true,
         data: orders,
       })
     })
+    .catch(next)
 })
 
-router.post('/', auth.authenticateToken, async (req, res) => {
+router.post('/', auth.authenticateToken, async (req, res, next) => {
   console.log(req.body)
-  var cartProducts = await Product.find({}, async (err, products) => {
-    if (err) {
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
-    return products
-  })
+  var cartProducts = await Product.find({})
+    .exec()
+    .then(async (products) => {
+      return products
+    })
+    .catch(next)
   var productList = await cartProducts.filter((product) => {
     return req.body.cart.includes(product._id.toString())
   })
@@ -78,188 +70,126 @@ router.post('/', auth.authenticateToken, async (req, res) => {
     // await console.log('product price', productList[index].price)
     amount += await productList[index].price
   }
-  var orderAddress = await Address.findById(
-    req.body.address,
-    (err, address) => {
-      if (err) {
-        console.error(err)
-        return res.status(400).send({
-          success: false,
-          error: err,
-        })
-      }
+  var orderAddress = await Address.findById(req.body.address)
+    .then((address) => {
       return address
-    }
-  )
+    })
+    .catch(next)
   const newOrder = new Order({
     user: req.user.id,
     amount: amount,
     cart: req.body.cart,
     address: orderAddress,
   })
-  savedOrder = await newOrder.save(async (err, savedOrder) => {
-    if (err) {
-      console.error(err)
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
-
-    User.findById(
-      {
+  savedOrder = await newOrder
+    .save()
+    .then(async (savedOrder) => {
+      User.findById({
         _id: req.user.id,
-      },
-      (error, orderedUser) => {
-        if (error) {
-          console.error(error)
-          return res.status(400).send({
+      })
+        .then((orderedUser) => {
+          // console.log(orderedUser)
+          orderedUser.orders.push(savedOrder._id)
+          orderedUser
+            .save()
+            .then(async (updatedUser) => {
+              // console.log(updatedUser)
+              await savedOrder.populate('cart')
+              await savedOrder.populate('user').execPopulate()
+              res.send({
+                success: true,
+                data: savedOrder,
+              })
+            })
+            .catch(next)
+        })
+        .catch(next)
+    })
+    .catch(next)
+})
+
+router.delete('/:id', auth.authenticateToken, (req, res, next) => {
+  Order.findById(req.params.id)
+    .then((order) => {
+      // console.log(order)
+      // console.log(req.user.id ,order.user)
+      if (req.user.id.toString() !== order.user.toString()) {
+        if (
+          !(parseInt(req.query.forcedelete) === 1 && req.user.isAdmin === true)
+        ) {
+          return res.status(401).send({
             success: false,
-            error: error,
+            message: 'Unauthorized user',
           })
         }
-        // console.log(orderedUser)
-        orderedUser.orders.push(savedOrder._id)
-        orderedUser.save(async (err, updatedUser) => {
-          if (err) {
-            console.error(err)
-            res.status(400).send({
-              success: false,
-              error: err,
+      }
+      User.findById(req.user.id)
+        .then(async (user) => {
+          var arrayIndex = await user.orders.indexOf(req.params.id)
+          await user.orders.splice(arrayIndex, 1)
+          await user
+            .save()
+            .then((savedUser) => {
+              console.log(savedUser)
             })
-          }
-          // console.log(updatedUser)
-          await savedOrder.populate('cart')
-          await savedOrder.populate('user').execPopulate()
+            .catch(next)
+        })
+        .catch(next)
+      order
+        .remove()
+        .then((removedOrder) => {
+          removedOrder.populate('user').execPopulate()
+          res.send({
+            success: true,
+            data: removedOrder,
+          })
+        })
+        .catch(next)
+    })
+    .catch(next)
+})
+
+router.put('/:id', auth.authenticateTokenAdmin, (req, res, next) => {
+  console.log(req.params.id, req.body)
+  Order.findById(req.params.id)
+    .then((order) => {
+      order.status = req.body.status
+      order
+        .save()
+        .then((savedOrder) => {
           res.send({
             success: true,
             data: savedOrder,
           })
         })
-      }
-    )
-  })
+        .catch(next)
+    })
+    .catch(next)
 })
 
-router.delete('/:id', auth.authenticateToken, (req, res) => {
-  Order.findById(req.params.id, (err, order) => {
-    if (err) {
-      console.error(err)
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
-    // console.log(order)
-    // console.log(req.user.id ,order.user)
-    if (req.user.id.toString() !== order.user.toString()) {
-      if (
-        !(parseInt(req.query.forcedelete) === 1 && req.user.isAdmin === true)
-      ) {
-        return res.status(401).send({
-          success: false,
-          message: 'Unauthorized user',
-        })
-      }
-    }
-    User.findById(req.user.id, async (err, user) => {
-      if (err) {
-        console.error(err)
-        return res.status(400).send({
-          success: false,
-          error: err,
-        })
-      }
-      var arrayIndex = await user.orders.indexOf(req.params.id)
-      await user.orders.splice(arrayIndex, 1)
-      await user.save((err, savedUser) => {
-        if (err) {
-          console.error(err)
-          return res.status(400).send({
-            success: false,
-            error: err,
-          })
-        }
-        console.log(savedUser)
-      })
-    })
-    order.remove((error, removedOrder) => {
-      if (error) {
-        console.error(error)
-        return res.status(400).send({
-          status: false,
-          error: error,
-        })
-      }
-      removedOrder.populate('user').execPopulate()
-      res.send({
-        success: true,
-        data: removedOrder,
-      })
-    })
-  })
-})
-
-router.put('/:id', auth.authenticateTokenAdmin, (req, res) => {
-  console.log(req.params.id, req.body)
-  Order.findById(req.params.id, (err, order) => {
-    if (err) {
-      console.error(err)
-      return res.status(400).send({
-        success: false,
-        error: err,
-      })
-    }
-    order.status = req.body.status
-    order.save((error, savedOrder) => {
-      if (error) {
-        console.error(error)
-        return res.status(400).send({
-          success: false,
-          error: error,
-        })
-      }
-      res.send({
-        success: true,
-        data: savedOrder,
-      })
-    })
-  })
-})
-
-router.get('/sales/total', (req, res) => {
-  Order.aggregate(
-    [
-      {
-        $match: {
-          status: 'complete',
+router.get('/sales/total', (req, res, next) => {
+  Order.aggregate([
+    {
+      $match: {
+        status: 'complete',
+      },
+    },
+    {
+      $group: {
+        _id: {
+          $month: '$createdAt',
+        },
+        sales: {
+          $sum: '$amount',
         },
       },
-      {
-        $group: {
-          _id: {
-            $month: '$createdAt',
-          },
-          sales: {
-            $sum: '$amount',
-          },
-        },
-      },
-    ],
-    (err, orders) => {
-      if (err) {
-        console.error(err)
-        return res.status(400).send({
-          status: false,
-          error: err,
-        })
-      }
-      res.json({
-        success: true,
-        data: orders,
-      })
-    }
-  )
+    },
+  ]).then((orders) => {
+    res.json({
+      success: true,
+      data: orders,
+    })
+  }).catch(next)
 })
 
 module.exports = router

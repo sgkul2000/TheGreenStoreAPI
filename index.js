@@ -1,7 +1,6 @@
 const express = require('express')
 const BodyParser = require('body-parser')
 const cors = require('cors')
-const path = require('path')
 const morgan = require('morgan')
 const dotenv = require('dotenv')
 const mongoose = require('mongoose')
@@ -15,6 +14,8 @@ const productRouter = require('./routes/product')
 const orderRouter = require('./routes/order')
 const addressRouter = require('./routes/address')
 const viewRouter = require('./routes/view')
+
+const errorHandler = require('./middleware/errorHandler')
 
 // setting up mongoose database
 mongoose.set('useCreateIndex', true)
@@ -47,6 +48,9 @@ app.use('/api/address', addressRouter)
 
 // view route
 app.use('/', viewRouter)
+
+// Error handler middleware
+app.use(errorHandler);
 
 // setting port
 port = process.env.PORT || 8000

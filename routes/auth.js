@@ -2,7 +2,7 @@ var nodemailer = require('nodemailer')
 const express = require('express')
 const router = express.Router()
 const auth = require('../middleware/auth')
-
+const referralCodeGenerator = require('referral-code-generator')
 const adminRoutes = require('./admin')
 
 const jwt = require('jsonwebtoken')
@@ -44,7 +44,20 @@ router.post('/register', (req, res) => {
     })
     return
   }
-
+  try {
+    const referralCode = referralCodeGenerator.custom(
+      'uppercase',
+      3,
+      6,
+      req.body.username
+    )
+  } catch (err) {
+    console.error(err)
+    return res.status(400).send({
+      auth: false,
+      error: err,
+    })
+  }
   User.create({
     email: req.body.email,
     username: req.body.username,
@@ -52,6 +65,7 @@ router.post('/register', (req, res) => {
     fullname: req.body.fullname,
     phone: req.body.phone,
     isAdmin: req.body.isAdmin ? req.body.isAdmin : false,
+    referralCode: referralCode,
   })
     .then((user) => {
       const token = jwt.sign(
@@ -60,6 +74,7 @@ router.post('/register', (req, res) => {
           email: user.email,
           username: user.username,
           isAdmin: user.isAdmin,
+          referralCode: user.referralCode,
         },
         process.env.PRIVATE_KEY,
         {
@@ -114,6 +129,7 @@ router.post('/login', (req, res) => {
               email: user.email,
               username: user.username,
               isAdmin: user.isAdmin,
+              referralCode: user.referralCode,
             },
             process.env.PRIVATE_KEY,
             {
@@ -137,6 +153,38 @@ router.post('/login', (req, res) => {
         error: err,
       })
     })
+})
+
+router.put('/', auth.authenticateToken, (req, res) => {
+  User.findOne({ email: req.user.email }, (err, user) => {
+    console.log(user)
+    if (err) {
+      console.error(err)
+      return res.status(400).send({
+        success: false,
+        error: err,
+      })
+    }
+    if(req.body.fullname){
+      user.fullname = req.body.fullname
+    }
+    if(req.body.phone){
+      user.phone = req.body.phone
+    }
+    user.save((err, savedUser) => {
+      if (err) {
+        console.error(err)
+        return res.status(400).send({
+          success: false,
+          error: err,
+        })
+      }
+      res.status(201).send({
+        success: true,
+        data: savedUser,
+      })
+    })
+  })
 })
 
 router.post('/resetpassword', (req, res) => {

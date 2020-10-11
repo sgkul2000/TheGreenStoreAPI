@@ -46,6 +46,15 @@ const UserSchema = new mongoose.Schema({
   resetToken:{
     type: String,
     required: false
+  },
+  referralCode: {
+    type: String,
+    required: true,
+  },
+  credits: {
+    type: Number,
+    required: true,
+    default: 0
   }
 }, {
   timestamps: true,

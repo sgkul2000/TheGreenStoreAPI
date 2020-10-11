@@ -6,18 +6,11 @@ const User = require("./models/userModel");
 const Address = require("./models/addressModel");
 
 
-router.get('/', auth.authenticateToken, (req, res) => {
+router.get('/', auth.authenticateToken, (req, res, next) => {
 	var params = {
 		email: req.user.email
 	}
-	User.findOne(params, async (err, user) => {
-		if (err) {
-			console.error(err)
-			return res.status(400).send({
-				success: false,
-				error: err
-			})
-		}
+	User.findOne(params).then( async (user) => {
 		// await user.populate('orders')
 		await user.populate('addresses').execPopulate()
 		console.log(user.addresses)
@@ -25,21 +18,14 @@ router.get('/', auth.authenticateToken, (req, res) => {
 			success: true,
 			data: user.addresses
 		})
-	})
+	}).catch(next)
 })
 
-router.get('/:id', auth.authenticateToken, (req, res) => {
+router.get('/:id', auth.authenticateToken, (req, res, next) => {
 	var params = {
 		email: req.user.email
 	}
-	User.findOne(params, async (err, user) => {
-		if (err) {
-			console.error(err)
-			return res.status(400).send({
-				success: false,
-				error: err
-			})
-		}
+	User.findOne(params).then( async (user) => {
 		await user.populate('addresses').execPopulate()
 		var requiredAddress = await user.addresses.filter((element) => {
 			return element._id.toString() === req.params.id.toString()
@@ -49,9 +35,11 @@ router.get('/:id', auth.authenticateToken, (req, res) => {
 			success: true,
 			data: requiredAddress[0]
 		})
-	})
+	}).catch(next)
 })
-router.post('/', auth.authenticateToken, (req, res) => {
+
+
+router.post('/', auth.authenticateToken, (req, res, next) => {
 	console.log(req.body)
 	var address = new Address({
 		buildingDetails: req.body.buildingDetails,
@@ -62,99 +50,43 @@ router.post('/', auth.authenticateToken, (req, res) => {
 		pincode: req.body.pincode,
 		gpsLocation: req.body.gpsLocation ? req.body.gpsLocation : "",
 	})
-	address.save((err, savedAddress) => {
-		if (err) {
-			console.error(err)
-			return res.status(400).send({
-				success: false,
-				error: err
-			})
-		}
+	address.save().then((savedAddress) => {
 		User.findOne({
 			email: req.user.email
-		}, (error, user) => {
-			if (error) {
-				console.error(error)
-				return res.status(401).send({
-					success: false,
-					error: error
-				})
-			}
+		}).then((user) => {
 			console.log(savedAddress._id)
 			user.addresses.push(savedAddress._id)
-			user.save((err, savedUser) => {
-				if (err) {
-					console.error(err)
-					return res.status(400).send({
-						success: false,
-						error: err
-					})
-				}
+			user.save().then(( savedUser) => {
 				res.send({
 					success: true,
 					data: savedAddress
 				})
-			})
-		})
-	})
+			}).catch(next)
+		}).catch(next)
+	}).catch(next)
 })
 
 
-router.delete('/:id', auth.authenticateToken, async (req, res) => {
-	Address.findById(req.params.id, (err, address) => {
-		if (err) {
-			console.error(err)
-			return res.status(400).send({
-				success: false,
-				error: err
-			})
-		}
-		User.findById(req.user.id, async (err, user) => {
-			if (err) {
-				console.error(err)
-				return res.status(400).send({
-					success: false,
-					error: err
-				})
-			}
+router.delete('/:id', auth.authenticateToken, async (req, res, next) => {
+	Address.findById(req.params.id).exec().then( (address) => {
+		User.findById(req.user.id).exec().then( async (user) => {
 			var arrayIndex = await user.addresses.indexOf(req.params.id)
 			await user.addresses.splice(arrayIndex, 1)
-			await user.save((err, savedUser) => {
-				if (err) {
-					console.error(err)
-					return res.status(400).send({
-						success: false,
-						error: err
-					})
-				}
-				console.log(savedUser)
-			})
-		})
-		address.remove((err, deletedAddress) => {
-			if (err) {
-				console.error(err)
-				return res.status(400).send({
-					success: false,
-					error: err
-				})
-			}
+			await user.save().then((savedUser) => {
+				// console.log(savedUser)
+			}).catch(next)
+		}).catch(next)
+		address.remove().then((deletedAddress) => {
 			res.send({
 				success: true,
 				data: deletedAddress
 			})
-		})
-	})
+		}).catch(next)
+	}).catch(next)
 })
 
-router.put('/:id', auth.authenticateToken, (req, res) => {
-	Address.findById(req.params.id, (err, address) => {
-		if (err) {
-			console.error(err)
-			return res.status(400).send({
-				success: false,
-				error: err
-			})
-		}
+router.put('/:id', auth.authenticateToken, (req, res, next) => {
+	Address.findById(req.params.id).then((address) => {
 		address.buildingDetails = req.body.buildingDetails
 		address.area = req.body.area
 		if(req.body.landmark){
@@ -166,20 +98,13 @@ router.put('/:id', auth.authenticateToken, (req, res) => {
 		if(req.body.gpsLocation){
 			address.gpsLocation = req.body.gpsLocation
 		}
-		address.save((err, savedAddress) => {
-			if (err) {
-				console.error(err)
-				return res.status(400).send({
-					success: false,
-					error: err
-				})
-			}
+		address.save().then((savedAddress) => {
 			res.send({
 				success: true,
 				data: savedAddress
 			})
-		})
-	})
+		}).catch(next)
+	}).catch(next)
 })
 
 module.exports = router

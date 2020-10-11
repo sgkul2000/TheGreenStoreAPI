@@ -27,12 +27,10 @@ const ProductSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    images: [
-      {
-        type: String,
-        required: false,
-      },
-    ],
+    image: {
+      type: String,
+      required: false,
+    },
     isAvailable: {
       type: Boolean,
       required: true,
@@ -43,6 +41,17 @@ const ProductSchema = new mongoose.Schema(
       required: true,
       default: false,
     },
+    source:{
+      type: String,
+      required: false
+    },
+    reviews: [
+      {
+        type: mongoose.Schema.ObjectId,
+        required: false,
+        ref: 'Review',
+      },
+    ],
   },
   {
     timestamps: true,

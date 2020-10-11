@@ -1,5 +1,6 @@
 # The Green Store
 A website for The Green Store Belgaum .
+## This a deprecated API server.
 <!-- Live Url : https://ashutoshfoods.herokuapp.com -->
 
 ## Instructions to run:
